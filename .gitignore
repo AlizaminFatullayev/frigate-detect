@@ -1,0 +1,18 @@
+# media (video/ is ignored except the placeholder)
+video/*
+!video/.gitkeep
+media/
+*.mp4
+*.mkv
+*.mov
+
+# Frigate runtime state: only config/config.yml is tracked
+config/*
+!config/config.yml
+*.db
+*.db-wal
+*.db-shm
+
+*.log
+.DS_Store
+*.bak

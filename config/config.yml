@@ -1,0 +1,47 @@
+mqtt:
+  enabled: false
+
+detectors:
+  cpu1:
+    type: cpu
+
+go2rtc:
+  streams:
+    demo:
+      - rtsp://mediamtx:8554/demo
+
+cameras:
+  demo:
+    ffmpeg:
+      inputs:
+        - path: rtsp://127.0.0.1:8554/demo # go2rtc restream of mediamtx
+          input_args: preset-rtsp-restream
+          roles: [detect, record]
+    detect:
+      enabled: true
+      fps: 5
+      # width/height omitted on purpose: Frigate auto-detects the stream's native resolution
+    objects:
+      track: [person, car]
+    zones:
+      entrance:
+        # relative coords (0-1): main crosswalk + right-hand waiting corner
+        coordinates: 0.323,0.435,0.885,0.37,0.896,0.685,0.281,0.713
+        objects: [person, car]
+    review:
+      alerts:
+        required_zones: [entrance]
+    snapshots:
+      enabled: true
+      retain:
+        default: 1
+    record:
+      enabled: true
+      alerts:
+        retain:
+          days: 1
+      detections:
+        retain:
+          days: 1
+
+version: 0.18-0

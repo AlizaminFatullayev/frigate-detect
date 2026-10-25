@@ -1,0 +1,42 @@
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:1.21.3
+    restart: unless-stopped
+    # no ports: reachable only on the compose network as mediamtx:8554
+
+  publisher:
+    # reuse the Frigate image for ffmpeg/ffprobe instead of pulling another image
+    image: ghcr.io/blakeblackshear/frigate:0.18.2
+    restart: unless-stopped
+    depends_on: [mediamtx]
+    environment:
+      VIDEO_FILE: demo_slow_4x.mp4 # empty = first .mp4 in ./video
+    volumes:
+      - ./video:/video:ro
+    healthcheck:
+      disable: true # inherited Frigate healthcheck does not apply here
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        f=/video/$${VIDEO_FILE}; [ -n "$$VIDEO_FILE" ] && [ -f "$$f" ] || f=$$(ls /video/*.mp4 2>/dev/null | head -n1)
+        [ -z "$$f" ] && { echo "no .mp4 in ./video - waiting"; sleep 30; exit 1; }
+        codec=$$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "$$f")
+        if [ "$$codec" = "h264" ]; then vc="-c:v copy"; else vc="-c:v libx264 -preset veryfast -tune zerolatency -g 50"; fi
+        echo "publishing $$f (codec=$$codec, $$vc)"
+        exec ffmpeg -hide_banner -loglevel warning -re -stream_loop -1 -i "$$f" -an $$vc -f rtsp -rtsp_transport tcp rtsp://mediamtx:8554/demo
+
+  frigate:
+    image: ghcr.io/blakeblackshear/frigate:0.18.2
+    restart: unless-stopped
+    depends_on: [publisher]
+    shm_size: "256mb" # 1 camera; Frigate docs: ~ (w*h*1.5*20 + 270480)/1048576 MB per camera + logs
+    volumes:
+      - ./config:/config
+      - ./media:/media/frigate
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
+    ports:
+      - "127.0.0.1:5000:5000"
+      - "[::1]:5000:5000" # localhost resolves to ::1 first on macOS
